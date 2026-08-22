@@ -1,6 +1,6 @@
 [project]
 name = "fanedit-provider"
-version = "1.0.0"
+version = "1.0.1"
 description = "Plex Metadata Provider for FanEdit movies"
 requires-python = ">=3.11"
 
