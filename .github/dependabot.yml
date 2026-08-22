@@ -4,7 +4,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     groups:
       github-actions:
         patterns:
@@ -20,8 +20,8 @@ updates:
         patterns:
           - "*"
 
-#  # Keep the base image and any other Dockerfile instructions current
-#  - package-ecosystem: "docker"
-#    directory: "/"
-#    schedule:
-#      interval: "monthly"
+  # Keep the base image and any other Dockerfile instructions current
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
