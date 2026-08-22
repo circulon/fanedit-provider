@@ -1,0 +1,6 @@
+Flask~=3.1
+gunicorn~=26.1
+httpx~=0.28
+rapidfuzz~=3.14
+python-dotenv~=1.2
+lxml~=6.1

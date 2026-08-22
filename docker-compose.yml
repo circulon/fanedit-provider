@@ -1,0 +1,9 @@
+services:
+  fanedit-provider:
+    build: .
+    image: fanedit-provider:latest
+    ports:
+      - "32900:32900"
+#    environment:
+#      PORT: "32900"
+    restart: unless-stopped

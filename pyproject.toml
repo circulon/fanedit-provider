@@ -1,0 +1,38 @@
+[project]
+name = "fanedit-provider"
+version = "1.0.0"
+description = "Plex Metadata Provider for FanEdit movies"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+]
+
+ignore = [
+#    "D100", # Missing docstring in public module
+#    "D104", # Missing docstring in public package
+#    "D203", # One blank line required before class docstring (Conflicts with D211)
+#    "D212", # Multi-line docstring should start on first line
+#    "D213", # Multi-line docstring summary should start at the second line (Conflicts with D212)
+#    "D415", # Docstring first line does not end in a punctuation mark
+    "D107",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+combine-as-imports = true
+forced-separate = ["tests"]
