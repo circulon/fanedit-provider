@@ -3,14 +3,45 @@ name: Build and Publish Docker Image
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*.*.*" ]
   workflow_dispatch: {}
 
 env:
   IMAGE_NAME: circulon/fanedit-provider
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      should_run: ${{ steps.check_tag.outputs.should_run }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Extract version from pyproject.toml
+        id: get_version
+        uses: SebRollen/toml-action@v1
+        with:
+          file: pyproject.toml
+          field: project.version
+
+      - name: Check if version already exists on Docker Hub
+        id: check_tag
+        run: |
+          VERSION="${{ steps.get_version.outputs.value }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://hub.docker.com/v2/repositories/${{ env.IMAGE_NAME }}/tags/v${VERSION}/")
+          if [ "$STATUS" = "200" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "Version v${VERSION} already exists on Docker Hub - skipping build"
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Version v${VERSION} not found on Docker Hub (status $STATUS) - proceeding with build"
+          fi
+
   build-and-push:
+    needs: check-version
+    if: needs.check-version.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -31,8 +62,8 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
+            type=raw,value=latest
+            type=raw,value=v${{ needs.check-version.outputs.version }}
             type=sha,prefix=,format=short
 
       - name: Build and push
@@ -48,7 +79,6 @@ jobs:
   sync-readme:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'   # only sync from main, not tag builds
     steps:
       - name: Checkout repo
         uses: actions/checkout@v7

@@ -56,10 +56,12 @@ This Provider can be used by multiple PMS instances without issue
 - You should see `FanEdit Movies` listed in the Metadata Providers
 
 **Add the Agent**
-- Click `Add Agent` in the `Metadata Agents` section
+- On the same page scroll down to the `Metadata Agents` section
+- Click `Add Agent`
 - Name your agent eg `Fanedit Movies`
 - Select `FanEdit Movies` as the Primary provider
-- (Optional) add other providers if required 
+- Optional but recommended add other providers 
+  - Add "Plex NFO Movie" as a fallback ti `.nfo` files if the title isn't found
 - Click `Save`
 
 ### Add or update a Library 
