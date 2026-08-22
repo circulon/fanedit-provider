@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # Keep GitHub Actions versions (checkout, docker/*, etc.) current
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Keep Python dependencies (requirements.txt / requirements-dev.txt) current
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+
+#  # Keep the base image and any other Dockerfile instructions current
+#  - package-ecosystem: "docker"
+#    directory: "/"
+#    schedule:
+#      interval: "monthly"
