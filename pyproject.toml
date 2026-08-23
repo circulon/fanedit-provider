@@ -4,6 +4,11 @@ version = "1.0.1"
 description = "Plex Metadata Provider for FanEdit movies"
 requires-python = ">=3.11"
 
+[tool.docker]
+image = "circulon/fanedit-provider"
+# Docker Hub truncates short descriptions at 100 characters
+short_description = "A Plex-compatible Metadata Provider for FanEdit Movies"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
