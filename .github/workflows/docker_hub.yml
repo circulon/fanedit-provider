@@ -9,7 +9,7 @@ jobs:
   project-info:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.get_version.outputs.version }}
+      version: ${{ steps.get_version.outputs.value }}
       short_description: ${{ steps.get_short_description.outputs.value }}
       image_name: ${{ steps.get_image_name.outputs.value }}
       should_run: ${{ steps.check_tag.outputs.should_run }}
