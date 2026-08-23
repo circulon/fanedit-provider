@@ -77,7 +77,6 @@ jobs:
           tags: |
             type=raw,value=latest
             type=raw,value=v${{ needs.project-info.outputs.version }}
-            type=sha,prefix=,format=short
 
       - name: Build and push
         uses: docker/build-push-action@v7
