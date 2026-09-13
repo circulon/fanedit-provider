@@ -36,17 +36,30 @@ DETAIL_PAGE_HTML = """
 <html><body>
 <div id="primary"><div>
 <h1><span itemprop="headline">Star Wars: Despecialized Edition</span></h1>
-<div class="jrListingMainImage"><a href="/img/full.jpg"><img src="/img/thumb.jpg"></a></div>
+<div class="jrOverallRatings">
+  <div class="jrOverallEditor" title="Trusted Reviewer rating"><span class="jrRatingValue"><span>9.4</span> <span class="rating_count">(<span class="count">2</span>)</span></span></div>
+  <div class="jrOverallUser" title="User rating"><span class="jrRatingValue"><span>8.8</span><span class="jrReviewCount"> (<span class="count">5</span>)</span></span></div>
+</div>
+<div class="jrListingMainImage"><a href="/img/full.jpg"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" data-jr-src="/img/thumb.jpg"></a></div>
 <div class="jrCustomFields">
   <div class="jrFaneditorname"><div class="jrFieldValue"><ul><li>Harmy</li></ul></div></div>
   <div class="jrOriginalmovietitle"><div class="jrFieldValue"><ul><li>Star Wars</li></ul></div></div>
+  <div class="jrGenre"><div class="jrFieldValue"><ul><li>Adventure</li><li>Science Fiction</li></ul></div></div>
   <div class="jrFanedittype"><div class="jrFieldValue"><a>Despecialized</a></div></div>
   <div class="jrFaneditreleasedate"><div class="jrFieldValue"><a>March 2020</a></div></div>
-  <div class="jrChangesfromtheoriginal"><div class="jrFieldValue"><ul>
-    <li>Removed CGI Jabba scene</li>
-    <li>Restored original Han-shoots-first edit</li>
-  </ul></div></div>
+  <div class="jrFaneditrunningtimemin"><div class="jrFieldValue">121 minutes</div></div>
+  <div class="jrAdditionallinks"><div class="jrFieldValue"><a href="https://www.imdb.com/title/tt0076759/"><img src="imdb.png"></a></div></div>
 </div>
+<div id="changes"><div class="jrCustomFields"><div class="jrFieldGroup changes">
+  <div class="jrEditingdetails jrFieldRow"><div class="jrFieldLabel">Editing Details:</div><div class="jrFieldValue">Removed CGI Jabba scene<br />
+Restored original Han-shoots-first edit</div></div>
+  <div class="jrCutlist jrFieldRow"><div class="jrFieldLabel">Cuts and Additions:</div><div class="jrFieldValue">Trimmed the Special Edition inserts.<br />
+<br />
+Restored the theatrical color grade.</div></div>
+</div></div></div>
+<div id="photoTab"><div class="jrThumbGallery"><div class="jrMediaThumb">
+  <a href="/img/coverart.jpg" class="fancybox" rel="gallery" title="coverart"><img src="/img/coverart-thumb.jpg"></a>
+</div></div></div>
 </div></div>
 <div id="fanedit-info"><div class="jrBriefsynopsis"><div class="jrFieldValue">A cleaned-up fan restoration.</div></div></div>
 </body></html>
@@ -87,14 +100,31 @@ def test_movie_full_metadata_round_trip():
     assert metadata["title"] == "Star Wars: Despecialized Edition"
     assert metadata["Director"] == [{"tag": "Harmy", "role": "Fan Editor"}]
     assert metadata["originalTitle"] == "Star Wars"
+    assert metadata["Genre"] == [{"tag": "Adventure"}, {"tag": "Science Fiction"}]
+    assert metadata["duration"] == 121 * 60 * 1000
+    assert metadata["Guid"] == [{"id": "imdb://tt0076759"}]
+    assert metadata["Rating"] == [
+        {"value": 9.4, "type": "critic", "image": "themoviedb://image.rating"},
+        {"value": 8.8, "type": "audience", "image": "themoviedb://image.rating"},
+    ]
+    assert metadata["Image"] == [
+        {"type": "coverPoster", "url": "/img/full.jpg", "alt": "Star Wars: Despecialized Edition"},
+        {"type": "coverPoster", "url": "/img/coverart.jpg", "alt": "Star Wars: Despecialized Edition"},
+    ]
     # "Changes from the original" has no dedicated Plex field - it's
     # carried via SourceMetadata.summary_extra and appended to the plain
     # synopsis by app/helper/mapper.py (see TestConfig.INCLUDE_EXTRA_IN_SUMMARY).
+    # Each labeled field from the #changes tab becomes its own sub-item,
+    # with a blank line between them for Plex summary readability.
     assert metadata["summary"] == (
         "A cleaned-up fan restoration.\n\n"
-        "Changes:\n"
-        "- Removed CGI Jabba scene\n"
-        "- Restored original Han-shoots-first edit"
+        "Changes:\n\n"
+        "Editing Details:\n"
+        "Removed CGI Jabba scene\n"
+        "Restored original Han-shoots-first edit\n\n"
+        "Cuts and Additions:\n"
+        "Trimmed the Special Edition inserts.\n\n"
+        "Restored the theatrical color grade."
     )
 
 
