@@ -95,7 +95,7 @@ class Config:
     MINIMUM_MANUAL_SCORE: int = int(os.environ.get("MINIMUM_MANUAL_SCORE", "70"))
 
     # --- Response paging (manual match requests) ----------------------------
-    DEFAULT_PAGE_SIZE: int = int(os.environ.get("DEFAULT_PAGE_SIZE", "20"))
+    DEFAULT_PAGE_SIZE: int = 20
 
     # --- Flask / server ------------------------------------------------------
     PORT: int = int(os.environ.get("PORT", "32900"))
