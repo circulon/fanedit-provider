@@ -52,6 +52,23 @@ jobs:
             echo "Version v${VERSION} not found on Docker Hub (status $STATUS) - proceeding with build"
           fi
 
+  readme-check:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.filter.outputs.readme }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Check whether README.md changed
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          base: ${{ github.event.repository.default_branch }}
+          filters: |
+            readme:
+              - 'README.md'
+
   build-and-push:
     needs: project-info
     if: needs.project-info.outputs.should_run == 'true'
@@ -89,7 +106,11 @@ jobs:
           cache-to: type=gha,mode=max
 
   sync-readme:
-    needs: [project-info, build-and-push]
+    needs: [project-info, build-and-push, readme-check]
+    if: |
+      always() &&
+      needs.project-info.result == 'success' &&
+      (needs.build-and-push.result == 'success' || needs.readme-check.outputs.changed == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
