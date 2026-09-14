@@ -17,6 +17,7 @@ Written with the assistance of Claude Code (https://www.claude.com/product/claud
 
 - [Quickstart](#quickstart)
   - [Setup container](#setup-container)
+    - [Optional: Container icon](#optional-container-icon)
   - [Add a Custom FanEdit Agent to Plex](#add-a-custom-fanedit-agent-to-plex)
   - [Add or update a Library](#add-or-update-a-library)
 - [Options](#options)
@@ -53,6 +54,12 @@ services:
             - "32900:32900"
         restart: unless-stopped
 ```
+
+#### Optional: Container icon
+
+The image includes an `org.opencontainers.image.icon` label pointing to a logo, for use in Docker management GUIs that support reading it (e.g. Unraid, Portainer, dashboard tools):
+
+`https://raw.githubusercontent.com/circulon/fanedit-provider/main/provider-logo.png`
 
 ### Add a Custom FanEdit Agent to Plex
 

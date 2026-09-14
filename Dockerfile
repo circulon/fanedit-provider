@@ -1,5 +1,12 @@
 FROM python:3.14-slim AS base
 
+LABEL org.opencontainers.image.title="FanEdit Metadata Provider" \
+      org.opencontainers.image.description="Plex Metadata Provider for FanEdit movies" \
+      org.opencontainers.image.url="https://hub.docker.com/r/circulon/fanedit-provider" \
+      org.opencontainers.image.source="https://github.com/circulon/fanedit-provider" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.icon="https://raw.githubusercontent.com/circulon/fanedit-provider/main/provider-logo.png"
+
 # lxml needs libxml2/libxslt at runtime.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
