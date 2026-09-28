@@ -23,13 +23,16 @@ Written with the assistance of Claude Code (https://www.claude.com/product/claud
 - [Options](#options)
   - [Entry Content](#entry-content)
   - [Search](#search)
+  - [FanEdit.org](#fanedit-org)
+  - [Server](#server)
   - [Caching (search and entry)](#caching-search-and-entry)
 - [Changes](#changes)
 
 ## Quickstart
 
-We provide a docker image with the defaults already setup. 
-You can run it with docker-compose or docker.
+We provide a docker image with the defaults already setup, for
+`linux/amd64` and `linux/arm64` (e.g. Raspberry Pi 4/5 on a 64-bit OS, ARM
+NAS devices). You can run it with docker-compose or docker.
 
 The default port is `32900` 
 
@@ -113,6 +116,26 @@ All options are set via environment variables
   - `MINIMUM_MANUAL_SCORE` minimum threshold for manual "fix match" searches
       - only titles scoring at or above this threshold are listed in the `match` or `fix_match` dialog
 
+### FanEdit.org
+
+- `FANEDIT_ORG_TIMEOUT` seconds to wait for fanedit.org to respond
+  - default: 25
+- `FANEDIT_ORG_CONNECT_TIMEOUT` seconds to wait for a connection (fails fast when the site is down)
+  - default: 5
+- `FANEDIT_ORG_MAX_CANDIDATES` maximum search results considered per search
+  - default: 25
+- `FANEDIT_ORG_MATCH_TYPE` fanedit.org keyword match mode: `all`, `any` or `exact`
+  - default: all
+
+### Server
+
+- `PORT` port to listen on
+  - default: 32900
+- `WORKERS` number of worker processes (each keeps its own cache)
+  - default: 2
+- `THREADS` request threads per worker
+  - default: 4
+
 ### Caching (search and entry)
 
 Internal caching is used to reduce hits on upstream sources. The caches are per worker process.
@@ -128,14 +151,21 @@ Internal caching is used to reduce hits on upstream sources. The caches are per 
 
 ## Changes
 
-### Unreleased
+### 1.2.0
+- Docker images now built for `linux/arm64` as well as `linux/amd64`
+- Smaller, faster image build (lxml's wheels already include libxml2/libxslt)
 - Sources, caches and services are now built once at startup, so config errors fail fast
-- Removed a startup race when several requests arrived at once
+- Removed a startup race condition when several requests arrived at once
 - fanedit.org outages now return `503` (so Plex retries) instead of a cached "not found"
 - Fail fast (5s connect timeout) when fanedit.org is down
 - Automatic and manual matches for the same title share one cached search
 - Simultaneous identical requests share one fanedit.org request
 - Error responses keep their proper status (e.g. `405`, `400`) and no longer include internal error text
+- Any option can be set by env var; tests no longer pick up a local `.env`
+- The provider only advertises the types enabled in its config
+- New options: `FANEDIT_ORG_TIMEOUT`, `FANEDIT_ORG_CONNECT_TIMEOUT`, `FANEDIT_ORG_MAX_CANDIDATES`, `FANEDIT_ORG_MATCH_TYPE`, `WORKERS`, `THREADS`
+- A misconfigured source list now stops the app at startup with a clear error
+- The user agent sent to fanedit.org now carries the full `major.minor` version (e.g. `FanEditProvider/1.1`)
 
 ### 1.1.0
 - Fixed `changes` not always being included in the summary
