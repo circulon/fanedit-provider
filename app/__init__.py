@@ -1,11 +1,10 @@
 """
-Media Provider Template
+FanEdit Metadata Provider
 =========================
 
-Flask skeleton implementing Plex's Custom Media Provider HTTP contract
+Flask app implementing Plex's Custom Metadata Provider HTTP contract
 (https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers) for
-movies, TV shows, and music. See README.md for the architecture and how to
-add a metadata source.
+fanedit movies, backed by fanedit.org.
 """
 import logging
 
@@ -33,14 +32,22 @@ def create_app(config_object: type[Config] = Config) -> Flask:
         from flask import request
 
         logger.info("Incoming Request: %s %s", request.method, request.path)
-        if request.method == 'GET':
-            logger.debug(f"Request params {request.args.to_dict()}")
-        elif request.method in ['POST', 'PUT']:
-            if request.is_json:
-                body_data = request.get_json()
-            else:
-                body_data = request.form.to_dict()
-            logger.debug(f"Request body {body_data}")
+        if not logger.isEnabledFor(logging.DEBUG):
+            return
+        if request.method == "GET":
+            logger.debug("Request params %s", request.args.to_dict())
+        elif request.method in ("POST", "PUT"):
+            # silent=True: a malformed body is the route's problem to report
+            # (as a 400), not the logger's.
+            body_data = request.get_json(silent=True) if request.is_json else request.form.to_dict()
+            logger.debug("Request body %s", body_data)
+
+    # Build every source client and service once, up front, so a bad
+    # config fails here rather than on the first request. See
+    # app/services.py.
+    from .services import init_services
+
+    init_services(app)
 
     from .routes import bp as routes_bp
 

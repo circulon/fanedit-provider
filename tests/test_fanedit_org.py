@@ -143,3 +143,55 @@ def test_no_results_returns_empty_metadata():
 
     assert resp.status_code == 200
     assert resp.get_json()["MediaContainer"]["Metadata"] == []
+
+
+# ----------------------------------------------------------------------
+# Upstream failures
+# ----------------------------------------------------------------------
+def test_detail_page_outage_is_503_and_not_cached():
+    client = _client()
+    with respx.mock:
+        respx.get(DETAIL_URL).mock(side_effect=httpx.ConnectError("down"))
+        resp = client.get(f"{URL_PREFIX_METADATA}/{RATING_KEY}")
+    assert resp.status_code == 503
+
+    # Site back up: the outage wasn't cached as "not found".
+    with respx.mock:
+        respx.get(DETAIL_URL).mock(return_value=httpx.Response(200, html=DETAIL_PAGE_HTML))
+        resp = client.get(f"{URL_PREFIX_METADATA}/{RATING_KEY}")
+    assert resp.status_code == 200
+
+
+def test_detail_page_server_error_is_503():
+    with respx.mock:
+        respx.get(DETAIL_URL).mock(return_value=httpx.Response(502))
+        resp = _client().get(f"{URL_PREFIX_METADATA}/{RATING_KEY}")
+    assert resp.status_code == 503
+
+
+def test_detail_page_404_is_404():
+    with respx.mock:
+        respx.get(DETAIL_URL).mock(return_value=httpx.Response(404))
+        resp = _client().get(f"{URL_PREFIX_METADATA}/{RATING_KEY}")
+    assert resp.status_code == 404
+
+
+def test_search_outage_is_503():
+    with respx.mock:
+        respx.get(SEARCH_URL).mock(side_effect=httpx.ConnectTimeout("slow"))
+        resp = _client().post(URL_PREFIX_MATCHES, json={"type": 1, "title": "Star Wars Despecialized"})
+    assert resp.status_code == 503
+
+
+def test_auto_and_manual_match_share_one_upstream_search():
+    client = _client()
+    with respx.mock:
+        route = respx.get(SEARCH_URL).mock(return_value=httpx.Response(200, html=SEARCH_RESULTS_HTML))
+        auto = client.post(URL_PREFIX_MATCHES, json={"type": 1, "title": "Star Wars: Despecialized Edition"})
+        manual = client.post(
+            URL_PREFIX_MATCHES, json={"type": 1, "title": "Star Wars: Despecialized Edition", "manual": 1}
+        )
+    assert auto.status_code == manual.status_code == 200
+    assert auto.get_json()["MediaContainer"]["size"] == 1
+    assert manual.get_json()["MediaContainer"]["size"] == 1
+    assert route.call_count == 1

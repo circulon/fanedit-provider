@@ -13,8 +13,8 @@ MINIMUM_MANUAL_SCORE is returned, for a person to choose from.
 
 Routing to a source category
 ------------------------------
-``match_request.type`` maps to a source category (movie/show/season/
-episode/music) via ``constants.match_type_to_source_category()``. A type
+``match_request.type`` maps to a source category (see
+constants.SOURCE_TYPES) via ``constants.match_type_to_source_category()``. A type
 that isn't recognized, or maps to a category with no enabled sources,
 raises ``UnsupportedMatchType`` (400) before any search runs.
 

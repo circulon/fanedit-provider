@@ -31,7 +31,7 @@ from urllib.parse import urljoin
 import httpx
 from lxml import html as lxml_html
 
-from app.client.base import ImageEntry, PersonEntry, RatingEntry, SourceMetadata
+from app.client.base import ImageEntry, PersonEntry, RatingEntry, SourceMetadata, SourceUnavailableError
 from app.schema.plex import MetadataType
 from app.util.scoring import title_match_score
 from app.util.text_utils import parse_flexible_date
@@ -52,10 +52,16 @@ _IMDB_ID_RE = re.compile(r"tt\d{7,9}")
 _MINUTES_RE = re.compile(r"\d+")
 
 
+class FaneditOrgError(SourceUnavailableError):
+    """fanedit.org couldn't be reached, or answered with an error. Not
+    cached, so the next request tries again; the route layer returns 503."""
+
+
 @dataclass
 class FaneditOrgConfig:
     match_type: str = "all"  # all | any | exact - fanedit.org's own keyword-match mode
-    timeout: float = 25.0
+    timeout: float = 25.0  # read/write timeout - fanedit.org can be slow to respond
+    connect_timeout: float = 5.0  # fail fast when the site is down
     user_agent: str = "Provider/1.0"
     max_candidates: int = 25
 
@@ -63,10 +69,12 @@ class FaneditOrgConfig:
 class FaneditOrg:
     """SourceClient for a best-effort scrape of fanedit.org (see
     app/client/base.py.SourceClient for the interface this implements).
-    Never raises - a broken scrape/request degrades to "found nothing"
-    (empty list / None) rather than breaking the request, since scraping is
-    inherently more fragile than a JSON API would be (see the module
-    docstring)."""
+    If fanedit.org can't be reached or returns an error status (other than
+    a 404 for a detail page), raises FaneditOrgError so the failure isn't
+    cached as "not found". Anything else that goes wrong (unexpected markup,
+    a malformed ratingKey) degrades to "found nothing" (empty list / None),
+    since scraping is inherently more fragile than a JSON API would be (see
+    the module docstring)."""
 
     name = "fanedit_org"
     base_url: str = "https://fanedit.org"
@@ -75,6 +83,7 @@ class FaneditOrg:
     def __init__(self, config: FaneditOrgConfig | None = None, client: httpx.Client | None = None):
         self.config = config or FaneditOrgConfig()
         self.client = client or httpx.Client()
+        self._timeout = httpx.Timeout(self.config.timeout, connect=self.config.connect_timeout)
 
     # ------------------------------------------------------------------
     # SourceClient interface
@@ -84,6 +93,8 @@ class FaneditOrg:
     ) -> list[SourceMetadata]:
         try:
             candidates = self._scrape_search_candidates(query)
+        except FaneditOrgError:
+            raise
         except Exception as exc:  # noqa: BLE001 - a broken scrape shouldn't break the request
             logger.warning("fanedit.org search failed for %r: %s", query, exc, exc_info=True)
             return []
@@ -107,6 +118,8 @@ class FaneditOrg:
 
         try:
             detail = self._scrape_entry_detail(url)
+        except FaneditOrgError:
+            raise
         except Exception as exc:  # noqa: BLE001 - a broken scrape shouldn't break the request
             logger.warning("fanedit.org detail page scrape failed for %r: %s", url, exc, exc_info=True)
             return None
@@ -136,13 +149,12 @@ class FaneditOrg:
                 url,
                 params=params,
                 headers={"User-Agent": self.config.user_agent},
-                timeout=self.config.timeout,
+                timeout=self._timeout,
                 follow_redirects=True,
             )
             resp.raise_for_status()
         except httpx.HTTPError as exc:
-            logger.warning("fanedit.org search request failed for %r: %s", query, exc)
-            return []
+            raise FaneditOrgError(f"fanedit.org search request failed for {query!r}: {exc}") from exc
 
         try:
             root = lxml_html.fromstring(resp.content)
@@ -178,18 +190,25 @@ class FaneditOrg:
     def _scrape_entry_detail(self, url: str) -> dict[str, Any] | None:
         """Scrapes a single entry's fanedit.org detail page directly.
         Returns a dict of raw scraped fields (see _extract_detail), or None
-        if the page couldn't be fetched/parsed."""
+        if the page doesn't exist (404) or couldn't be parsed. Raises
+        FaneditOrgError if fanedit.org couldn't be reached."""
         try:
             resp = self.client.get(
                 url,
                 headers={"User-Agent": self.config.user_agent},
-                timeout=self.config.timeout,
+                timeout=self._timeout,
                 follow_redirects=True,
             )
-            resp.raise_for_status()
         except httpx.HTTPError as exc:
-            logger.warning("fanedit.org detail page request failed for %r: %s", url, exc)
+            raise FaneditOrgError(f"fanedit.org detail page request failed for {url!r}: {exc}") from exc
+
+        if resp.status_code == 404:
+            logger.info("fanedit.org detail page not found: %r", url)
             return None
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise FaneditOrgError(f"fanedit.org detail page request failed for {url!r}: {exc}") from exc
 
         try:
             root = lxml_html.fromstring(resp.content)

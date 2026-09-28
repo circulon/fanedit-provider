@@ -140,7 +140,10 @@ class SourceUnavailableError(Exception):
     """Raised by a SourceClient's search()/get_entry() to signal a
     recoverable failure to reach or parse that source. MatchService/
     SearchService treat this as "move on to the next enabled source" when
-    one is available, and re-raise it when it's the last one. Concrete
+    one is available, and re-raise it when it's the last one, which the
+    route layer turns into a 503. It is never cached, so the next request
+    retries the upstream - raise it for outages rather than returning
+    None/[] (which are cached as "not found"). Concrete
     sources should subclass this for their own error type - see
     app/client/source/movie/example_movie.py."""
 
@@ -161,7 +164,9 @@ class SourceClient(Protocol):
         """Candidate SourceMetadata for a free-text query. Only
         ``upstream_id``/``title`` are guaranteed on a result.
         ``ignore_score`` (0-100) is available for a source that wants to
-        pre-filter its own results before returning them. Returns ``[]``
+        pre-filter its own results before returning them. It's the lowest
+        configured match threshold (see CachingSourceClient's
+        search_floor); MatchService applies the stricter one itself. Returns ``[]``
         for no results; may raise SourceUnavailableError."""
         ...
 

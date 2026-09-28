@@ -1,6 +1,7 @@
 """
 Config-driven assembly of the enabled, ordered source clients used at
-request time, per category (movie/show/season/episode/music).
+request time, per category (see app/helper/constants.SOURCE_TYPES -
+this provider only serves movie).
 
 Adding a new source
 --------------------
@@ -9,9 +10,7 @@ Adding a new source
      - a class named ``TmdbLite`` (filename snake_case -> PascalCase)
        implementing app/client/base.SourceClient, with a ``name`` class
        attribute equal to its own module's filename ("tmdb_lite"). See
-       app/client/source/movie/example_movie.py,
-       app/client/source/show/example_show.py, and
-       app/client/source/music/example_music.py for examples.
+       app/client/source/movie/fanedit_org.py for an example.
      - optionally, a fully-defaulted ``TmdbLiteConfig`` dataclass. If it has
        a ``user_agent`` field, build_enabled_clients() fills it in from
        ``Config.PROVIDER_USER_AGENT``.
@@ -38,15 +37,13 @@ from dataclasses import dataclass
 import importlib
 import logging
 import pkgutil
-from typing import TYPE_CHECKING
+from collections.abc import Mapping
+from typing import Any
 
 from app.client.base import SourceClient
 from app.client.caching import CachingSourceClient
 from app.helper.constants import SOURCE_TYPES, SourceType
 from app.util.ttl_cache import TTLCache
-
-if TYPE_CHECKING:
-    from flask import Flask
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +67,7 @@ def _discover_source_classes(category: SourceType) -> dict[str, _DiscoveredSourc
         package = importlib.import_module(f"app.client.source.{category}")
     except ImportError:
         logger.warning(
-            f"Code for ty[e '{category}' does not exist at app/client/source/{category} does not exist - skipping.",
+            "No source package for category '%s' at app/client/source/%s - skipping.", category, category,
         )
         return {}
 
@@ -119,52 +116,42 @@ _SOURCE_CLASSES: dict[SourceType, dict[str, _DiscoveredSource]] = {
 }
 
 
-def _build_source(app: "Flask", category: SourceType, name: str, source: _DiscoveredSource) -> SourceClient:
-    """Constructs (and caches on app.extensions, for reuse across
-    requests) one source client."""
-    key = f"source_client:{category}:{name}"
-    if key not in app.extensions:
-        if source.config_cls is None:
-            app.extensions[key] = source.cls()
-        else:
-            field_names = {f.name for f in dataclasses.fields(source.config_cls)}
-            kwargs = {}
-            if "user_agent" in field_names:
-                kwargs["user_agent"] = app.config["PROVIDER_USER_AGENT"]
-            app.extensions[key] = source.cls(source.config_cls(**kwargs))
-    return app.extensions[key]
+def _build_source(config: Mapping[str, Any], source: _DiscoveredSource) -> SourceClient:
+    """Constructs one source client, filling in ``user_agent`` from
+    ``PROVIDER_USER_AGENT`` if the source's config dataclass has that field."""
+    if source.config_cls is None:
+        return source.cls()
+    field_names = {f.name for f in dataclasses.fields(source.config_cls)}
+    kwargs = {}
+    if "user_agent" in field_names:
+        kwargs["user_agent"] = config["PROVIDER_USER_AGENT"]
+    return source.cls(source.config_cls(**kwargs))
 
 
-def build_enabled_clients(app: "Flask", category: SourceType) -> list[SourceClient]:
+def build_enabled_clients(
+    config: Mapping[str, Any],
+    category: SourceType,
+    search_cache: TTLCache,
+    entry_cache: TTLCache,
+    search_floor: int | None = None,
+) -> list[SourceClient]:
     """Builds the enabled source clients for one category, in the order
     given by ``Config.<CATEGORY>_SOURCES``, each wrapped in a
-    CachingSourceClient sharing one search-cache and one entry-cache across
-    every category. Returns ``[]`` immediately if
-    ``ENABLE_<CATEGORY>_SOURCES`` is false."""
-    cfg = app.config
-    settings = cfg["SOURCE_CATEGORIES"].get(category)
+    CachingSourceClient using the given (shared) caches and search floor
+    (see CachingSourceClient). Returns ``[]``
+    immediately if ``ENABLE_<CATEGORY>_SOURCES`` is false."""
+    settings = config["SOURCE_CATEGORIES"].get(category)
     if settings is None:
         raise RuntimeError(
             f"No SOURCE_CATEGORIES entry for category {category!r} - check "
             "Config.SOURCE_CATEGORIES in app/helper/config.py."
         )
-    enabled = settings.enabled
-    order = settings.sources
-    if not enabled:
+    if not settings.enabled:
         return []
-
-    search_cache: TTLCache = app.extensions.setdefault(
-        "source_search_cache",
-        TTLCache(maxsize=cfg["SEARCH_CACHE_MAX_SIZE"], ttl_seconds=cfg["SEARCH_CACHE_TTL_SECONDS"]),
-    )
-    entry_cache: TTLCache = app.extensions.setdefault(
-        "source_entry_cache",
-        TTLCache(maxsize=cfg["ENTRY_CACHE_MAX_SIZE"], ttl_seconds=cfg["ENTRY_CACHE_TTL_SECONDS"]),
-    )
 
     known = _SOURCE_CLASSES.get(category, {})
     clients: list[SourceClient] = []
-    for name in order:
+    for name in settings.sources:
         source = known.get(name)
         if source is None:
             logger.warning(
@@ -172,16 +159,34 @@ def build_enabled_clients(app: "Flask", category: SourceType) -> list[SourceClie
                 category.upper(), name, category, ", ".join(sorted(known)) or "(none)",
             )
             continue
-        clients.append(CachingSourceClient(_build_source(app, category, name, source), search_cache, entry_cache))
+        clients.append(
+            CachingSourceClient(
+                _build_source(config, source), search_cache, entry_cache, search_floor=search_floor
+            )
+        )
 
     if not clients:
         logger.warning("No %s metadata sources enabled - check ENABLE_%s_SOURCES/%s_SOURCES",
-                        category, category.upper(), category.upper())
+                       category, category.upper(), category.upper())
 
     return clients
 
 
-def build_all_enabled_clients(app: "Flask") -> dict[SourceType, list[SourceClient]]:
+def build_all_enabled_clients(config: Mapping[str, Any]) -> dict[SourceType, list[SourceClient]]:
     """Builds every category's enabled client list at once, keyed by
-    category name."""
-    return {category: build_enabled_clients(app, category) for category in SOURCE_TYPES}
+    category name. One search cache and one entry cache are shared by every
+    client across all categories. Called once per app, from
+    app/services.build_services()."""
+    search_cache: TTLCache = TTLCache(
+        maxsize=config["SEARCH_CACHE_MAX_SIZE"], ttl_seconds=config["SEARCH_CACHE_TTL_SECONDS"]
+    )
+    entry_cache: TTLCache = TTLCache(
+        maxsize=config["ENTRY_CACHE_MAX_SIZE"], ttl_seconds=config["ENTRY_CACHE_TTL_SECONDS"]
+    )
+    # Search every source at the lower of the two match thresholds, so
+    # automatic and manual matches for a title share one cached search.
+    search_floor = min(config["MINIMUM_EXACT_SCORE"], config["MINIMUM_MANUAL_SCORE"])
+    return {
+        category: build_enabled_clients(config, category, search_cache, entry_cache, search_floor)
+        for category in SOURCE_TYPES
+    }

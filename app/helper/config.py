@@ -1,8 +1,8 @@
 """
 Environment-driven configuration.
 
-Metadata sources are enabled per category (movie/show/season/episode/music
-- see app/helper/constants.SOURCE_TYPES), via two env vars each:
+Metadata sources are enabled per category (see app/helper/constants.SOURCE_TYPES
+- this provider only serves movie), via two env vars each:
 
   ENABLE_<CATEGORY>_SOURCES=true|false   # category on/off
   <CATEGORY>_SOURCES=first,second,...    # which sources, in priority order

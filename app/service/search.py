@@ -2,7 +2,7 @@
 Holds an ordered list of enabled source clients and resolves a single
 ratingKey's full metadata by trying each client in turn.
 
-app/routes.py builds one SearchService per source category (for
+app/services.py builds one SearchService per source category (for
 type-scoped matching, see app/service/match.py) plus one combined
 SearchService over all enabled categories (for ratingKey lookups, which
 carry no type information - see app/service/metadata.py).

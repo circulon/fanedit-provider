@@ -108,25 +108,34 @@ All options are set via environment variables
 
 - Matching thresholds (0-100)
   - `MINIMUM_EXACT_SCORE` minimum score for automatic (non-manual) matching.
-    - titles found with a score of 100 will be used
-    - if no titles found have a score of 100 no data will be used
-  - `MINIMUM_MANUAL_SCORE` minumum threshold for manual "fix match" searches 
-      - only titles scoring above this threshold will be listed in the `match` or `fix_match` dialog
+    - a title is matched automatically only when exactly one result scores at or above this
+    - if none (or more than one) do, nothing is matched
+  - `MINIMUM_MANUAL_SCORE` minimum threshold for manual "fix match" searches
+      - only titles scoring at or above this threshold are listed in the `match` or `fix_match` dialog
 
 ### Caching (search and entry)
 
-Internal caching is used to reduce hits on upstream sources
+Internal caching is used to reduce hits on upstream sources. The caches are per worker process.
 
 - `ENTRY_CACHE_TTL_SECONDS` number of seconds entries are cached for
   - default: 60
 - `ENTRY_CACHE_MAX_SIZE` number of entries to hold
   - default: 200
-- `SEARCH_CACHE_TTL_SECONDS`number of seconds to keep titles returnd from a search for
+- `SEARCH_CACHE_TTL_SECONDS` number of seconds search results are cached for
   - default: 60
-- `SEARCH_CACHE_MAX_SIZE` number of title from searches to hold
+- `SEARCH_CACHE_MAX_SIZE` number of searches to hold
   - default: 100
 
 ## Changes
+
+### Unreleased
+- Sources, caches and services are now built once at startup, so config errors fail fast
+- Removed a startup race when several requests arrived at once
+- fanedit.org outages now return `503` (so Plex retries) instead of a cached "not found"
+- Fail fast (5s connect timeout) when fanedit.org is down
+- Automatic and manual matches for the same title share one cached search
+- Simultaneous identical requests share one fanedit.org request
+- Error responses keep their proper status (e.g. `405`, `400`) and no longer include internal error text
 
 ### 1.1.0
 - Fixed `changes` not always being included in the summary
@@ -143,6 +152,3 @@ Internal caching is used to reduce hits on upstream sources
 
 ### 1.0.0
 - Initial release
-
-
-### Unreleased
