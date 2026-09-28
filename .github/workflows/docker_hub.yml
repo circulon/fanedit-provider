@@ -12,6 +12,7 @@ jobs:
       version: ${{ steps.get_version.outputs.value }}
       short_description: ${{ steps.get_short_description.outputs.value }}
       image_name: ${{ steps.get_image_name.outputs.value }}
+      platforms: ${{ steps.get_platforms.outputs.value }}
       should_run: ${{ steps.check_tag.outputs.should_run }}
     steps:
       - name: Checkout repo
@@ -37,6 +38,13 @@ jobs:
         with:
           file: pyproject.toml
           field: tool.docker.image
+
+      - name: Extract Docker platforms from pyproject.toml
+        id: get_platforms
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: pyproject.toml
+          field: tool.docker.platforms
 
       - name: Check if version already exists on Docker Hub
         id: check_tag
@@ -77,6 +85,10 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v7
 
+      # Emulates the non-native platforms (e.g. arm64) during the build.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -99,6 +111,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
+          platforms: ${{ needs.project-info.outputs.platforms }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

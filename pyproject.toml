@@ -8,6 +8,9 @@ requires-python = ">=3.11"
 image = "circulon/fanedit-provider"
 # Docker Hub truncates short descriptions at 100 characters
 short_description = "A Plex-compatible Metadata Provider for FanEdit Movies"
+# Image architectures (comma-separated). Every dependency must have a
+# pre-built wheel for each one - see README "Docker images".
+platforms = "linux/amd64,linux/arm64"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
