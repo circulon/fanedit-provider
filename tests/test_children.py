@@ -217,10 +217,10 @@ def test_include_children_omitted_for_movie_type():
 # MatchService: includeChildren
 # ----------------------------------------------------------------------
 def test_match_include_children_embeds_children_for_show():
-    # type 1/"movie" is this provider's only wired-up category (see
+    client, search, mapper, _ = _services()
+    # type 1/"movie" is this provider's only category (see
     # app/helper/constants.py) - the *entry* returned by FakeShowClient is
     # still a Show/Season, which is what _maybe_attach_children keys off of.
-    client, search, mapper, _ = _services()
     match_service = MatchService(
         search_by_category={"movie": search},
         mapper=mapper,
@@ -235,6 +235,9 @@ def test_match_include_children_embeds_children_for_show():
 
 def test_match_without_include_children_has_no_children_key():
     client, search, mapper, _ = _services()
+    # type 1/"movie" is this provider's only category (see
+    # app/helper/constants.py) - the *entry* returned by FakeShowClient is
+    # still a Show/Season, which is what _maybe_attach_children keys off of.
     match_service = MatchService(
         search_by_category={"movie": search},
         mapper=mapper,

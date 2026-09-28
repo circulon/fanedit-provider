@@ -1,7 +1,7 @@
 """Smoke tests for the app factory and provider-definition endpoint."""
 from app import create_app
 from app.helper.config import TestConfig
-from app.helper.constants import URL_PREFIX_MATCHES
+from app.helper.constants import SOURCE_CATEGORY_MATCH_TYPES, URL_PREFIX_MATCHES
 
 
 def _client():
@@ -16,19 +16,25 @@ def test_health():
     assert resp.get_json() == {"status": "ok"}
 
 
-def test_provider_definition_advertises_enabled_types_only():
-    resp = _client().get("/")
+def test_provider_definition_advertises_config_enabled_types():
+    app = create_app(TestConfig)
+    resp = app.test_client().get("/")
     assert resp.status_code == 200
     body = resp.get_json()
-    types = {t["type"] for t in body["MediaProvider"]["Types"]}
-    # FanEdit only enables a movie(1) source; show/season/episode/music are
-    # all off - see TestConfig in app/helper/config.py.
-    assert types == {1}
+    types = [t["type"] for t in body["MediaProvider"]["Types"]]
+    # Exactly the categories enabled in the config, in SOURCE_TYPES order.
+    expected = [
+        SOURCE_CATEGORY_MATCH_TYPES[category]
+        for category, settings in app.config["SOURCE_CATEGORIES"].items()
+        if settings.enabled
+    ]
+    assert types == expected
+    assert types  # at least one type is served
     for t in body["MediaProvider"]["Types"]:
         assert t["Scheme"] == [{"scheme": TestConfig.PROVIDER_IDENTIFIER}]
 
 
-def test_season_and_episode_categories_have_no_default_source():
+def test_disabled_categories_are_400():
     client = _client()
     resp = client.post(URL_PREFIX_MATCHES, json={"type": 3, "title": "Season 1"})
     assert resp.status_code == 400

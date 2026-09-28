@@ -195,3 +195,8 @@ def test_auto_and_manual_match_share_one_upstream_search():
     assert auto.get_json()["MediaContainer"]["size"] == 1
     assert manual.get_json()["MediaContainer"]["size"] == 1
     assert route.call_count == 1
+
+
+def test_provider_advertises_movies_only():
+    types = {t["type"] for t in _client().get("/").get_json()["MediaProvider"]["Types"]}
+    assert types == {1}
