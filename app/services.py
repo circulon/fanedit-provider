@@ -25,19 +25,27 @@ Routes read the graph via services().
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from flask import Flask, current_app
 
 from app.client.base import SourceClient
 from app.client.registry import build_all_enabled_clients
-from app.helper.constants import SOURCE_TYPES, SourceType
+from app.helper.constants import (
+    PLEX_DOCUMENTED_MATCH_TYPES,
+    SOURCE_CATEGORY_MATCH_TYPES,
+    SOURCE_TYPES,
+    SourceType,
+)
 from app.helper.mapper import Mapper
 from app.service.match import MatchService, MatchThresholds
 from app.service.metadata import MetadataService
 from app.service.search import SearchService
 
 EXTENSION_KEY = "metadata_provider"
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -48,13 +56,16 @@ class Services:
     metadata: MetadataService
 
     @property
-    def enabled_categories(self) -> set[SourceType]:
-        return {category for category, clients in self.clients_by_category.items() if clients}
+    def enabled_categories(self) -> list[SourceType]:
+        """Enabled categories, in SOURCE_TYPES order. Every one has at least
+        one source - build_all_enabled_clients() rejects any that don't."""
+        return [category for category in SOURCE_TYPES if self.clients_by_category.get(category)]
 
 
 def build_services(app: Flask) -> Services:
     cfg = app.config
     clients_by_category = build_all_enabled_clients(cfg)
+    _warn_undocumented_types(clients_by_category)
 
     mapper = Mapper(
         scheme=cfg["PROVIDER_IDENTIFIER"],
@@ -89,6 +100,16 @@ def build_services(app: Flask) -> Services:
         ),
         metadata=MetadataService(search=combined_search, mapper=mapper),
     )
+
+
+def _warn_undocumented_types(clients_by_category: dict[SourceType, list[SourceClient]]) -> None:
+    for category, clients in clients_by_category.items():
+        if clients and SOURCE_CATEGORY_MATCH_TYPES[category] not in PLEX_DOCUMENTED_MATCH_TYPES:
+            logger.warning(
+                "ENABLE_%s_SOURCES is on, so type %d (%s) is advertised to Plex, but Plex's "
+                "custom-provider API doesn't document support for it yet.",
+                category.upper(), SOURCE_CATEGORY_MATCH_TYPES[category], category,
+            )
 
 
 def init_services(app: Flask) -> Services:

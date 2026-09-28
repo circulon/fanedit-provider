@@ -13,8 +13,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.client.base import ImageEntry, PersonEntry, SourceMetadata
 from app.helper.constants import URL_PREFIX_METADATA
+from app.client.base import ImageEntry, PersonEntry, SourceMetadata
 from app.schema.plex import (
     GRANDPARENT_TYPE_OF,
     PARENT_TYPE_OF,

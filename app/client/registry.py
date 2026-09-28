@@ -1,7 +1,6 @@
 """
 Config-driven assembly of the enabled, ordered source clients used at
-request time, per category (see app/helper/constants.SOURCE_TYPES -
-this provider only serves movie).
+request time, per category (see app/helper/constants.SOURCE_TYPES).
 
 Adding a new source
 --------------------
@@ -10,18 +9,21 @@ Adding a new source
      - a class named ``TmdbLite`` (filename snake_case -> PascalCase)
        implementing app/client/base.SourceClient, with a ``name`` class
        attribute equal to its own module's filename ("tmdb_lite"). See
-       app/client/source/movie/fanedit_org.py for an example.
-     - optionally, a fully-defaulted ``TmdbLiteConfig`` dataclass. If it has
-       a ``user_agent`` field, build_enabled_clients() fills it in from
-       ``Config.PROVIDER_USER_AGENT``.
-2. Add "tmdb_lite" to that category's <CATEGORY>_SOURCES env var and make
-   sure ENABLE_<CATEGORY>_SOURCES is true.
+       the existing modules under app/client/source/ for examples.
+     - optionally, a fully-defaulted ``TmdbLiteConfig`` dataclass. Each
+       plain field becomes a setting named ``TMDB_LITE_<FIELD>`` (e.g.
+       ``TMDB_LITE_TIMEOUT``), overridable in app/helper/config.py or by
+       env var. A ``user_agent`` field is filled from PROVIDER_USER_AGENT.
+2. Add "tmdb_lite" to that category's <CATEGORY>_SOURCES setting (in
+   app/helper/config.py, or the env var of the same name) and make sure
+   ENABLE_<CATEGORY>_SOURCES is true.
 
 _discover_source_classes() scans each category's package at import time and
 builds its name -> class mapping; nothing here needs manual editing when
 sources are added or removed. A module that doesn't follow the naming
-convention, or a name in <CATEGORY>_SOURCES that doesn't match a discovered
-module, is logged and skipped rather than crashing app startup.
+convention is logged and skipped. A name in an enabled category's
+<CATEGORY>_SOURCES that doesn't match a discovered module, or an enabled
+category with no sources, stops the app at startup (ConfigError).
 
 Enabling/disabling and ordering
 ---------------------------------
@@ -33,15 +35,16 @@ MatchService._search_and_score in app/service/match.py.
 from __future__ import annotations
 
 import dataclasses
-from dataclasses import dataclass
 import importlib
 import logging
 import pkgutil
+from dataclasses import dataclass
 from collections.abc import Mapping
 from typing import Any
 
 from app.client.base import SourceClient
 from app.client.caching import CachingSourceClient
+from app.helper.config_base import ConfigError
 from app.helper.constants import SOURCE_TYPES, SourceType
 from app.util.ttl_cache import TTLCache
 
@@ -66,9 +69,7 @@ def _discover_source_classes(category: SourceType) -> dict[str, _DiscoveredSourc
     try:
         package = importlib.import_module(f"app.client.source.{category}")
     except ImportError:
-        logger.warning(
-            "No source package for category '%s' at app/client/source/%s - skipping.", category, category,
-        )
+        logger.debug("No source package for category %r at app/client/source/%s.", category, category)
         return {}
 
     discovered: dict[str, _DiscoveredSource] = {}
@@ -116,14 +117,59 @@ _SOURCE_CLASSES: dict[SourceType, dict[str, _DiscoveredSource]] = {
 }
 
 
-def _build_source(config: Mapping[str, Any], source: _DiscoveredSource) -> SourceClient:
-    """Constructs one source client, filling in ``user_agent`` from
-    ``PROVIDER_USER_AGENT`` if the source's config dataclass has that field."""
+def _source_setting_key(source_name: str, field_name: str) -> str:
+    """e.g. ("fanedit_org", "timeout") -> "FANEDIT_ORG_TIMEOUT"."""
+    return f"{source_name}_{field_name}".upper()
+
+
+def _configurable_fields(source: _DiscoveredSource) -> list[dataclasses.Field]:
+    """A source config dataclass's fields that are exposed as settings:
+    those with a plain str/int/float/bool/list default. ``user_agent`` is
+    left out - it always comes from PROVIDER_USER_AGENT."""
+    if source.config_cls is None:
+        return []
+    fields = []
+    for f in dataclasses.fields(source.config_cls):
+        if f.name == "user_agent":
+            continue
+        default = f.default
+        if default is dataclasses.MISSING and f.default_factory is not dataclasses.MISSING:
+            default = f.default_factory()
+        if isinstance(default, (str, int, float, bool, list)):
+            fields.append(f)
+    return fields
+
+
+def _field_default(f: dataclasses.Field) -> Any:
+    return f.default_factory() if f.default is dataclasses.MISSING else f.default
+
+
+def source_setting_defaults() -> dict[str, Any]:
+    """Every discovered source's config fields as settings, e.g.
+    ``{"FANEDIT_ORG_TIMEOUT": 25.0, ...}``, with the dataclass defaults.
+    create_app() loads these into app.config beneath your Config, so each
+    can be overridden in app/helper/config.py or by an env var of the same
+    name."""
+    defaults: dict[str, Any] = {}
+    for sources in _SOURCE_CLASSES.values():
+        for name, source in sources.items():
+            for f in _configurable_fields(source):
+                defaults[_source_setting_key(name, f.name)] = _field_default(f)
+    return defaults
+
+
+def _build_source(config: Mapping[str, Any], name: str, source: _DiscoveredSource) -> SourceClient:
+    """Constructs one source client from its config dataclass, taking each
+    field's value from the matching ``<SOURCE>_<FIELD>`` setting and
+    ``user_agent`` from ``PROVIDER_USER_AGENT``."""
     if source.config_cls is None:
         return source.cls()
-    field_names = {f.name for f in dataclasses.fields(source.config_cls)}
-    kwargs = {}
-    if "user_agent" in field_names:
+    kwargs = {
+        f.name: config[_source_setting_key(name, f.name)]
+        for f in _configurable_fields(source)
+        if _source_setting_key(name, f.name) in config
+    }
+    if "user_agent" in {f.name for f in dataclasses.fields(source.config_cls)}:
         kwargs["user_agent"] = config["PROVIDER_USER_AGENT"]
     return source.cls(source.config_cls(**kwargs))
 
@@ -136,40 +182,40 @@ def build_enabled_clients(
     search_floor: int | None = None,
 ) -> list[SourceClient]:
     """Builds the enabled source clients for one category, in the order
-    given by ``Config.<CATEGORY>_SOURCES``, each wrapped in a
-    CachingSourceClient using the given (shared) caches and search floor
-    (see CachingSourceClient). Returns ``[]``
-    immediately if ``ENABLE_<CATEGORY>_SOURCES`` is false."""
-    settings = config["SOURCE_CATEGORIES"].get(category)
-    if settings is None:
-        raise RuntimeError(
-            f"No SOURCE_CATEGORIES entry for category {category!r} - check "
-            "Config.SOURCE_CATEGORIES in app/helper/config.py."
-        )
+    given by ``<CATEGORY>_SOURCES``, each wrapped in a CachingSourceClient
+    using the given (shared) caches and search floor (see
+    CachingSourceClient). Returns ``[]`` if ``ENABLE_<CATEGORY>_SOURCES`` is
+    false.
+
+    Raises ConfigError if the category is enabled but lists no sources, or
+    names a source that doesn't exist - an enabled category is advertised
+    to Plex, so it must be able to serve requests."""
+    settings = config["SOURCE_CATEGORIES"][category]
     if not settings.enabled:
         return []
 
+    key = category.upper()
     known = _SOURCE_CLASSES.get(category, {})
-    clients: list[SourceClient] = []
-    for name in settings.sources:
-        source = known.get(name)
-        if source is None:
-            logger.warning(
-                "%s_SOURCES contains unknown source %r - skipping. Known %s sources: %s",
-                category.upper(), name, category, ", ".join(sorted(known)) or "(none)",
-            )
-            continue
-        clients.append(
-            CachingSourceClient(
-                _build_source(config, source), search_cache, entry_cache, search_floor=search_floor
-            )
+    if not settings.sources:
+        raise ConfigError(
+            f"ENABLE_{key}_SOURCES is true but {key}_SOURCES is empty - add a source "
+            f"or disable the category. Available {category} sources: "
+            f"{', '.join(sorted(known)) or '(none)'}."
+        )
+    unknown = [name for name in settings.sources if name not in known]
+    if unknown:
+        raise ConfigError(
+            f"{key}_SOURCES names unknown source(s): {', '.join(unknown)}. "
+            f"Available {category} sources: {', '.join(sorted(known)) or '(none)'} "
+            f"(see app/client/source/{category}/)."
         )
 
-    if not clients:
-        logger.warning("No %s metadata sources enabled - check ENABLE_%s_SOURCES/%s_SOURCES",
-                       category, category.upper(), category.upper())
-
-    return clients
+    return [
+        CachingSourceClient(
+            _build_source(config, name, known[name]), search_cache, entry_cache, search_floor=search_floor
+        )
+        for name in settings.sources
+    ]
 
 
 def build_all_enabled_clients(config: Mapping[str, Any]) -> dict[SourceType, list[SourceClient]]:

@@ -14,7 +14,7 @@ MINIMUM_MANUAL_SCORE is returned, for a person to choose from.
 Routing to a source category
 ------------------------------
 ``match_request.type`` maps to a source category (see
-constants.SOURCE_TYPES) via ``constants.match_type_to_source_category()``. A type
+``constants.SOURCE_TYPES``) via ``constants.match_type_to_source_category()``. A type
 that isn't recognized, or maps to a category with no enabled sources,
 raises ``UnsupportedMatchType`` (400) before any search runs.
 
@@ -39,12 +39,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.client.base import SourceMetadata, SourceUnavailableError
-from app.helper.config import Config
-from app.helper.constants import (
-    match_type_to_source_category,
-    SOURCE_CATEGORY_MATCH_TYPES,
-    SourceType,
-)
+from app.helper.config_base import BaseConfig
+from app.helper.constants import SOURCE_CATEGORY_MATCH_TYPES, SourceType, match_type_to_source_category
 from app.schema.match_request import MatchRequest
 from app.schema.plex import MetadataType
 from app.service.search import SearchService
@@ -55,10 +51,13 @@ from app.util.text_utils import strip_diacritics
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True)
 class MatchThresholds:
-    exact_minimum: int = Config.MINIMUM_EXACT_SCORE
-    manual_minimum: int = Config.MINIMUM_MANUAL_SCORE
+    """Minimum scores (0-100) - see MINIMUM_EXACT_SCORE /
+    MINIMUM_MANUAL_SCORE in app/helper/config_base.py."""
+
+    exact_minimum: int = BaseConfig.MINIMUM_EXACT_SCORE
+    manual_minimum: int = BaseConfig.MINIMUM_MANUAL_SCORE
 
 
 class MatchService:
@@ -161,21 +160,16 @@ class MatchService:
         """Maps the request's numeric ``type`` to the enabled SearchService
         for its source category, or raises UnsupportedMatchType."""
         category = match_type_to_source_category(match_type)
-        if category is None:
-            supported = ", ".join(
-                f"{value} ({key})" for key, value in SOURCE_CATEGORY_MATCH_TYPES.items()
+        search = self.search_by_category.get(category) if category is not None else None
+        if search is None or not search.clients:
+            enabled = ", ".join(
+                f"{SOURCE_CATEGORY_MATCH_TYPES[c]} ({c})"
+                for c, s in self.search_by_category.items()
+                if s.clients
             )
             raise UnsupportedMatchType(
                 f"Unsupported metadata type: {match_type!r}. "
-                f"supported types: {supported}"
-            )
-
-        search = self.search_by_category.get(category)
-        if search is None or not search.clients:
-            raise UnsupportedMatchType(
-                f"Metadata type {match_type!r} maps to the {category!r} source category, "
-                f"which has no enabled sources - check ENABLE_{category.upper()}_SOURCES / "
-                f"{category.upper()}_SOURCES."
+                f"This provider serves: {enabled or 'nothing (no categories enabled)'}"
             )
         return search
 

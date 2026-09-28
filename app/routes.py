@@ -1,26 +1,25 @@
 """
-HTTP routes implementing the Plex Custom Media Provider contract.
+HTTP routes implementing the Plex Custom Metadata Provider contract.
 
 Endpoints (see docs/API Endpoints.md and docs/MediaProvider.md in
 https://github.com/plexinc/tmdb-example-provider, and
 https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers):
 
-  GET  /                                        -> MediaProvider definition
-  GET  /metadata/<ratingKey>            -> Metadata feature
+  GET  /                                      -> MediaProvider definition
+  GET  /metadata/<ratingKey>                -> Metadata feature
                                                     (?includeChildren=1, ?episodeOrder=)
-  GET  /metadata/<ratingKey>/children    -> Direct children (Seasons of a
+  GET  /metadata/<ratingKey>/children       -> Direct children (Seasons of a
                                                     Show, Episodes of a Season).
                                                     TV Shows/Seasons only. Mandatory
                                                     paging - defaults to 20 items.
-  GET  /metadata/<ratingKey>/grandchildren -> Episodes of a Show, flattening
+  GET  /metadata/<ratingKey>/grandchildren  -> Episodes of a Show, flattening
                                                     past Seasons. TV Shows only.
                                                     Mandatory paging - defaults to
                                                     20 items.
-  GET  /metadata/<ratingKey>/images     -> Image list for an item
-  GET  /metadata/<ratingKey>/extras     -> Extras list for an item
-  POST /matches                -> Match feature
-                                                    (includeChildren, episodeOrder)
-  GET  /health                                  -> Simple liveness check
+  GET  /metadata/<ratingKey>/images         -> Image list for an item
+  GET  /metadata/<ratingKey>/extras         -> Extras list for an item
+  POST /matches                             -> Match feature (includeChildren, episodeOrder)
+  GET  /health                                -> Simple liveness check
 """
 from __future__ import annotations
 
@@ -31,17 +30,15 @@ from werkzeug.exceptions import HTTPException
 
 from app.client.base import SourceUnavailableError
 from app.helper.constants import (
-    PLEX_SUPPORTED_MATCH_TYPES,
-    SOURCE_CATEGORY_MATCH_TYPES,
-    SOURCE_TYPES,
     URL_PREFIX_MATCHES,
     URL_PREFIX_METADATA,
+    SOURCE_CATEGORY_MATCH_TYPES,
 )
 from app.service.match import UnsupportedMatchType
 from app.service.metadata import NotFoundError
 from app.services import services
 
-bp = Blueprint("ifdb_provider", __name__)
+bp = Blueprint("metadata_provider", __name__)
 logger = logging.getLogger(__name__)
 
 
@@ -84,23 +81,17 @@ def _paging_params(default_size: int) -> tuple[int, int]:
 # ----------------------------------------------------------------------
 # Provider definition
 # ----------------------------------------------------------------------
+
 def _build_provider_response() -> dict:
-    """One ``Types`` entry per metadata type actually served - every type
-    belonging to an enabled source category, intersected with
-    PLEX_SUPPORTED_MATCH_TYPES so an unsupported type is
-    never advertised even if enabled locally."""
+    """One ``Types`` entry per category enabled in the config
+    (ENABLE_<CATEGORY>_SOURCES) - the config is the source of truth for what
+    this provider serves."""
     cfg = current_app.config
     identifier = cfg["PROVIDER_IDENTIFIER"]
-    enabled_categories = services().enabled_categories
-
-    types: list[dict] = []
-    for category in SOURCE_TYPES:
-        if category not in enabled_categories:
-            continue
-        match_type = SOURCE_CATEGORY_MATCH_TYPES[category]
-        if match_type not in PLEX_SUPPORTED_MATCH_TYPES:
-            continue
-        types.append({"type": match_type, "Scheme": [{"scheme": identifier}]})
+    types = [
+        {"type": SOURCE_CATEGORY_MATCH_TYPES[category], "Scheme": [{"scheme": identifier}]}
+        for category in services().enabled_categories
+    ]
 
     return {
         "MediaProvider": {

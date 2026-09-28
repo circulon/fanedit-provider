@@ -37,9 +37,10 @@ SOURCE_CATEGORY_MATCH_TYPES: dict[SourceType, MatchRequestType] = {
     SourceType.MOVIE: MatchRequestType.MOVIE,
 }
 
-# The subset of match types Plex's custom-provider API currently accepts -
-# used to build the MediaProvider "Types" array (see app/routes.py).
-PLEX_SUPPORTED_MATCH_TYPES: set[MatchRequestType] = {
+# The match types Plex's custom-provider API currently documents. Used only to
+# warn at startup when an enabled category falls outside it - what's
+# advertised to Plex is decided by the config (ENABLE_<CATEGORY>_SOURCES).
+PLEX_DOCUMENTED_MATCH_TYPES: set[MatchRequestType] = {
     MatchRequestType.MOVIE,
 }
 

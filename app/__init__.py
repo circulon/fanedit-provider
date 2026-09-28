@@ -1,24 +1,22 @@
 """
-FanEdit Metadata Provider
-=========================
-
-Flask app implementing Plex's Custom Metadata Provider HTTP contract
-(https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers) for
-fanedit movies, backed by fanedit.org.
+Application factory for a Plex Custom Metadata Provider
+(https://developer.plex.tv/pms/#section/API-Info/Metadata-Providers).
+Provider-specific settings live in app/helper/config.py and sources under
+app/client/source/; see README.md.
 """
 import logging
 
 from flask import Flask
 
-from app.helper.config import Config, validate_source_categories
+from app.helper.config import Config
+from app.client.registry import source_setting_defaults
+from app.helper.config_base import load_config
 
 
 def create_app(config_object: type[Config] = Config) -> Flask:
     """Application factory."""
-    validate_source_categories(config_object)
-
     app = Flask(__name__)
-    app.config.from_object(config_object)
+    load_config(app.config, config_object, source_setting_defaults())
 
     logging.basicConfig(
         level=app.config["LOG_LEVEL"],

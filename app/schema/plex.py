@@ -34,9 +34,8 @@ class MetadataType(StrEnum):
     SHOW = "show"
     SEASON = "season"
     EPISODE = "episode"
-    # Not part of this provider's currently active category set (movie
-    # only) or Plex's documented custom-provider type set - kept for
-    # forward-looking scaffolding.
+    # Not part of Plex's documented custom-provider type set today - kept
+    # as forward-looking scaffolding (see PLEX_DOCUMENTED_MATCH_TYPES).
     ARTIST = "artist"
     ALBUM = "album"
     TRACK = "track"
