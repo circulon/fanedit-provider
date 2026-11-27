@@ -70,7 +70,7 @@ jobs:
 
       - name: Check whether README.md changed
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           base: ${{ github.event.repository.default_branch }}
           filters: |
