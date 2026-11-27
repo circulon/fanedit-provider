@@ -1,8 +1,8 @@
 # FanEdit Metadata Provider
 
-[![version](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcirculon%2Ffanedit-provider%2Fmain%2Fpyproject.toml&query=%24.project.version&label=version&color=blue)](https://github.com/circulon/fanedit-provider)
+[![version](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fcirculon%2Ffanedit-provider%2Fmaster%2Fpyproject.toml&query=%24.project.version&label=version&color=blue)](https://github.com/circulon/fanedit-provider)
 [![Docker Pulls](https://img.shields.io/docker/pulls/circulon/fanedit-provider)](https://hub.docker.com/r/circulon/fanedit-provider/tags)
-[![License: MIT](https://img.shields.io/github/license/circulon/fanedit-provider)](https://github.com/circulon/fanedit-provider/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/github/license/circulon/fanedit-provider)](https://github.com/circulon/fanedit-provider/blob/master/LICENSE)
 [![docker-hub build status](https://img.shields.io/github/actions/workflow/status/circulon/fanedit-provider/docker_hub.yml?label=docker%20build)](https://github.com/circulon/fanedit-provider/actions/workflows/docker_hub.yml)
 
 
@@ -62,7 +62,7 @@ services:
 
 The image includes an `org.opencontainers.image.icon` label pointing to a logo, for use in Docker management GUIs that support reading it (e.g. Unraid, Portainer, dashboard tools):
 
-`https://raw.githubusercontent.com/circulon/fanedit-provider/main/provider-logo.png`
+`https://raw.githubusercontent.com/circulon/fanedit-provider/master/provider-logo.png`
 
 ### Add a Custom FanEdit Agent to Plex
 

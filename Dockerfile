@@ -5,7 +5,7 @@ LABEL org.opencontainers.image.title="FanEdit Metadata Provider" \
       org.opencontainers.image.url="https://hub.docker.com/r/circulon/fanedit-provider" \
       org.opencontainers.image.source="https://github.com/circulon/fanedit-provider" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.icon="https://raw.githubusercontent.com/circulon/fanedit-provider/main/provider-logo.png"
+      org.opencontainers.image.icon="https://raw.githubusercontent.com/circulon/fanedit-provider/master/provider-logo.png"
 
 WORKDIR /app
 
